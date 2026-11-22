@@ -27,3 +27,32 @@ Rules: Use actions/checkout@v6, actions/setup-node@v6 and actions/upload-artifac
 ## 4. My reading of the workflow
 - **When, where, the code and Node.js (lines 3–18):** Basically it says whenever you push code, spin up a fresh Linux machine on GitHub with a 20-minute time limit, grab the repo code, and set up Node 24 with npm caching so later runs are quicker.
 - **Packages, browser, tests and the report (lines 20–35):** First, it runs `npm ci` to install the exact packages from the lockfile, then downloads just the Chromium browser with its Linux dependencies. After that, it runs the Playwright tests, and finally, as long as the run wasn't cancelled, it saves the HTML report folder for 30 days—even if some tests fail.
+
+## 5. The first run on GitHub
+- **Run:** Add the CI workflow · **Result:** green tick, Success (36s) · **Tests:** 21 passed (5.7s); the 2 tests marked with `test.fail()` show ✘ and count as passed
+- **The report (artifact):** Yes, **playwright-report** is right there under **Artifacts**.
+
+## 6. A red run on purpose
+- **The change:** `tests/example.spec.ts` line 6, `toBe(200)` → `toBe(201)`
+- **My prediction:** The "Run the tests" step will turn red because `tests/example.spec.ts` checks `GET /api/tags` and expects status `201`, whereas the endpoint actually returns `200` (Expected: 201, Received: 200).
+- **What GitHub showed:** red cross, Failure. Step "Run the tests": 1 failed, "the API lists the popular tags", Expected: 201, Received: 200; 20 passed. The run kept its **playwright-report** artifact.
+
+## 7. Fixed, and green again
+- **The fix:** line 6 back to `toBe(200)` · **Run:** Fix the expected status · **Result:** passed with green tick, 21 passed
+
+## 8. Review notes for my other AI-written tests (written while CI ran)
+The API checklist: status · body · shape · negative cases (a refused request changes nothing) · own test data.
+Monday's and Tuesday's tests that I did not review in depth on those days. Each one: kept, changed or removed, and why.
+
+### Monday: `tests/api.spec.ts`
+- "reading an article by slug returns 200 and the same values that were saved": **kept**, because it checks 200, the full response fields, and uses its own test data.
+- "deleting an article returns 204 with no body, and then the article is gone": **kept**, because it checks 204 and empty body, then confirms deletion with a 404.
+- "creating an article without a token returns 401 "token is missing" and saves nothing": **kept**, because it is a solid negative test checking 401, the error message, and that nothing got saved.
+- "updating someone else's article returns 403 and the article does not change": **kept**, because it checks 403 and verifies the article stayed untouched afterward.
+- "deleting an article that does not exist returns 404 "article not found"": **kept**, because it is a clean 404 check with error message, and nothing left behind to verify.
+
+### Tuesday: `tests/contract.spec.ts`
+- "GET /api/user returns 200 and a User with every field and type from API.md": **changed**, because it checks 200, field types, and own user data, but uses toMatchObject without checking the exact key list so extra fields could slip through.
+- "GET /api/user with no token returns 401 "token is missing"": **kept**, because it checks 401 and the exact error body when no token is sent.
+- "GET /api/user with a wrong token returns 401 "token is invalid"": **kept**, because it creates its own user, alters the token, and checks 401 with the exact error body.
+- "PUT on someone else's article returns 403 "article forbidden" and the article does not change": **kept**, because it uses its own two users, checks 403 and the error body, and verifies via GET that nothing changed.
